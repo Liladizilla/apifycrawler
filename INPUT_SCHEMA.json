@@ -1,0 +1,34 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Hotel outreach actor input",
+  "type": "object",
+  "properties": {
+    "startUrls": {
+      "type": "array",
+      "description": "Explicit list of businesses and URL pages to inspect.",
+      "items": {
+        "type": "object",
+        "properties": {
+          "business_name": { "type": "string" },
+          "website": { "type": "string" },
+          "url": { "type": "string" },
+          "name": { "type": "string" }
+        },
+        "required": ["url"]
+      }
+    },
+    "csv_file": {
+      "type": "string",
+      "description": "Optional CSV path containing a batch of hotel rows with business_name, website, and url columns."
+    },
+    "google_places_enabled": {
+      "type": "boolean",
+      "description": "Set to true only when you have authorized Google Places API access and a valid API key configured."
+    },
+    "google_places_api_key": {
+      "type": "string",
+      "description": "Optional Google Places API key used only when the actor is explicitly enabled for authorized retrieval."
+    }
+  },
+  "required": ["startUrls"]
+}

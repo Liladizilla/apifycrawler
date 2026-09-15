@@ -1,0 +1,16 @@
+{
+  "startUrls": [
+    {
+      "business_name": "Green Valley Hotel",
+      "website": "https://greenvalleyhotel.co.ke",
+      "url": "https://greenvalleyhotel.co.ke/contact"
+    },
+    {
+      "business_name": "Blue Horizon Suites",
+      "website": "https://bluehorizonsuites.example",
+      "url": "https://bluehorizonsuites.example/contact"
+    }
+  ],
+  "google_places_enabled": false,
+  "google_places_api_key": ""
+}

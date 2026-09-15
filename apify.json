@@ -1,0 +1,15 @@
+{
+  "name": "hotel-outreach-actor",
+  "version": "1.0.0",
+  "description": "Collects publicly available hotel contact data from public website pages and authorized Google Places lookups.",
+  "main": "actor.py",
+  "compatibility": {
+    "python": "3.11"
+  },
+  "environment": {
+    "GOOGLE_PLACES_ENABLED": "false",
+    "GOOGLE_PLACES_API_KEY": ""
+  },
+  "organization": "",
+  "public": false
+}

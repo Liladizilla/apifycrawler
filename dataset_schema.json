@@ -1,0 +1,38 @@
+{
+  "title": "Hotel contact extraction dataset",
+  "type": "object",
+  "properties": {
+    "business_name": { "type": "string" },
+    "website": { "type": "string" },
+    "source_url": { "type": "string" },
+    "phone_numbers": {
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "emails": {
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "address": { "type": "string" },
+    "quality_score": { "type": "integer" },
+    "legal_info": {
+      "type": "object",
+      "properties": {
+        "source": { "type": "string" },
+        "sources": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "public_contact_fields": {
+          "type": "object",
+          "properties": {
+            "phone": { "type": "boolean" },
+            "email": { "type": "boolean" },
+            "address": { "type": "boolean" }
+          }
+        },
+        "description": { "type": "string" }
+      }
+    }
+  }
+}
