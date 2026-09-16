@@ -1,5 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "schemaVersion": 1,
   "title": "Location-based business lookup actor input",
   "type": "object",
   "properties": {
