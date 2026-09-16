@@ -1,7 +1,7 @@
 {
-  "name": "hotel-outreach-actor",
-  "version": "1.0.0",
-  "description": "Collects publicly available hotel contact data from public website pages and authorized Google Places lookups.",
+  "name": "local-business-discovery-actor",
+  "version": "1.1.0",
+  "description": "Finds businesses in a requested location and returns their names, emails, phone numbers, websites, and social media links when publicly available.",
   "main": "actor.py",
   "compatibility": {
     "python": "3.11"

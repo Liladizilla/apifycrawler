@@ -1,23 +1,29 @@
-# Hotel outreach Apify actor
+# Local business lookup Apify actor
 
-This repository contains a Python Apify actor for collecting public contact data from hotel websites and, when explicitly authorized, Google Places API lookups.
+This repository contains a Python Apify actor for a different use case: a user enters a destination or area and a business type, then the actor discovers matching businesses and returns public contact details when they are legally available.
 
 ## What it does
 
-- accepts a batch of hotels through `startUrls`
-- accepts a CSV file with `business_name`, `website`, and `url` rows
-- fetches public pages and extracts
+- accepts inputs such as `destination = "Nairobi"` and `search_term = "hotel"`
+- optionally accepts `location`, `query`, `area`, and `max_results`
+- uses authorized Google Places API results when available
+- for each candidate business, looks for public contact data including
+  - business name
   - email addresses
   - phone numbers
-  - public address text
-  - legal/source metadata
-- optionally enriches with Google Places API data when `GOOGLE_PLACES_ENABLED=true` and a valid API key is present
+  - website link
+  - address
+  - social media links
 - deduplicates results and assigns a quality score
-- pushes cleaned records to the Apify dataset
+- pushes structured output rows to the Apify dataset
+
+## Important privacy note
+
+The repo does not include a tracked company list. Sensitive business-name datasets should live outside the repository or be loaded at runtime only when needed. The project intentionally avoids committing location-specific customer lists or scraped company names into Git.
 
 ## Legal / compliance note
 
-Only collect information that is openly published by the business itself. Do not scrape Google Maps or similar protected surfaces in violation of their terms. Use the Google Places API only when you are explicitly authorized to do so and have a valid API key.
+Only handle information that is publicly exposed and legally available. Do not scrape protected surfaces in violation of terms. For Google Maps / Places data, use the official Places API only when authorized and configured with a valid API key.
 
 ## Repository structure
 
@@ -27,7 +33,7 @@ Only collect information that is openly published by the business itself. Do not
 - `apify_input_example.json` — example payload
 - `dataset_schema.json` — dataset schema
 - `.env.example` — environment template for Google API credentials
-- `requirements.txt` — project dependencies
+- `requirements.txt` — dependencies
 
 ## Local setup
 
@@ -43,6 +49,16 @@ python -m py_compile actor.py
 
 ```json
 {
+  "destination": "Nairobi",
+  "search_term": "hotel",
+  "max_results": 10
+}
+```
+
+Legacy direct-run input still works:
+
+```json
+{
   "startUrls": [
     {
       "business_name": "Green Valley Hotel",
@@ -51,21 +67,6 @@ python -m py_compile actor.py
     }
   ]
 }
-```
-
-For CSV mode:
-
-```json
-{
-  "csv_file": "data/hotel_websites.csv"
-}
-```
-
-The CSV should contain columns such as:
-
-```csv
-business_name,website,url
-Green Valley Hotel,https://greenvalleyhotel.co.ke,https://greenvalleyhotel.co.ke/contact
 ```
 
 ## Google Places API mode
@@ -77,21 +78,7 @@ GOOGLE_PLACES_ENABLED=true
 GOOGLE_PLACES_API_KEY=your_api_key_here
 ```
 
-Then run the actor with explicit authorized access only.
-
-## Deployment to Apify
-
-1. initialize the git repo and connect your remote
-2. push to GitHub
-3. create an Apify actor from the repo or sync it with Apify CLI
-4. set the environment variables in Apify for Google Places if needed
-
-Example Apify environment values:
-
-```bash
-GOOGLE_PLACES_ENABLED=false
-GOOGLE_PLACES_API_KEY=
-```
+Then run the actor only with an authorized Google account and valid API access.
 
 ## Dataset output shape
 
@@ -103,15 +90,15 @@ Each result includes:
 - `phone_numbers`
 - `emails`
 - `address`
+- `social_media`
 - `quality_score`
 - `legal_info`
 
 ## Verification
 
-Local validation command used:
+This project was validated with a local smoke test and a compile check:
 
 ```bash
 .venv/bin/python -m py_compile actor.py
+.venv/bin/python -m pytest tests/test_actor.py -q
 ```
-
-and a smoke test confirmed extraction for a sample hotel page.

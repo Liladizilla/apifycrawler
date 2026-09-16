@@ -1,6 +1,5 @@
 import asyncio
 import csv
-import json
 import os
 import re
 from pathlib import Path
@@ -8,8 +7,11 @@ from typing import Any, Dict, Iterable, List, Optional
 
 import httpx
 from bs4 import BeautifulSoup
+from dotenv import load_dotenv
 from apify import Actor
 
+
+load_dotenv(Path(__file__).with_name(".env"))
 
 EMAIL_RE = re.compile(r"[A-Za-z0-9._%+\-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}")
 PHONE_RE = re.compile(r"(?:\+?\d[\d\s().\-]{7,}\d)")
@@ -46,6 +48,56 @@ def extract_emails(text: str) -> List[str]:
     return list(dict.fromkeys(emails))
 
 
+def build_search_query(destination: str, search_term: str) -> str:
+    destination = (destination or "").strip()
+    search_term = (search_term or "").strip()
+    if destination and search_term:
+        return f"{search_term} in {destination}"
+    if destination:
+        return destination
+    return search_term or "business"
+
+
+def extract_social_links(html: str) -> Dict[str, List[str]]:
+    data: Dict[str, List[str]] = {
+        "facebook": [],
+        "instagram": [],
+        "x": [],
+        "linkedin": [],
+        "youtube": [],
+        "whatsapp": [],
+        "tiktok": [],
+        "threads": [],
+    }
+    if not html:
+        return data
+
+    soup = BeautifulSoup(html, "html.parser")
+    for anchor in soup.select("a[href]"):
+        href = (anchor.get("href") or "").strip()
+        if not href:
+            continue
+        lower = href.lower()
+        if "facebook.com" in lower:
+            data["facebook"].append(href)
+        if "instagram.com" in lower:
+            data["instagram"].append(href)
+        if "twitter.com" in lower or "x.com" in lower:
+            data["x"].append(href)
+        if "linkedin.com" in lower:
+            data["linkedin"].append(href)
+        if "youtube.com" in lower or "youtu.be" in lower:
+            data["youtube"].append(href)
+        if "wa.me" in lower or "api.whatsapp.com" in lower:
+            data["whatsapp"].append(href)
+        if "tiktok.com" in lower:
+            data["tiktok"].append(href)
+        if "threads.net" in lower:
+            data["threads"].append(href)
+
+    return {k: list(dict.fromkeys(v)) for k, v in data.items()}
+
+
 def score_record(record: Dict[str, Any]) -> int:
     score = 0
     if record.get("emails"):
@@ -56,6 +108,8 @@ def score_record(record: Dict[str, Any]) -> int:
         score += 20
     if record.get("website"):
         score += 10
+    if record.get("social_media"):
+        score += 5
     if record.get("legal_info", {}).get("source") == "google_places_api":
         score += 10
     return min(score, 100)
@@ -71,6 +125,13 @@ def merge_records(record_a: Dict[str, Any], record_b: Dict[str, Any]) -> Dict[st
         merged["website"] = record_b.get("website") or ""
     if not merged.get("source_url"):
         merged["source_url"] = record_b.get("source_url") or ""
+
+    social_a = record_a.get("social_media") or {}
+    social_b = record_b.get("social_media") or {}
+    merged["social_media"] = {
+        key: list(dict.fromkeys((social_a.get(key) or []) + (social_b.get(key) or [])))
+        for key in set(social_a) | set(social_b)
+    }
 
     legal = dict(record_a.get("legal_info") or {})
     other_legal = dict(record_b.get("legal_info") or {})
@@ -129,6 +190,7 @@ def extract_address(html: str) -> str:
         '[itemprop="streetAddress"]',
         '[itemprop="address"]',
         '[data-testid="address"]',
+        '[class*="address"]',
     ]
 
     for selector in selectors:
@@ -162,6 +224,7 @@ def extract_public_info(business_name: str, website: str, url: str, html: str) -
     emails = extract_emails(raw_contact_text)
     phones = extract_phones(raw_contact_text)
     address = extract_address(html)
+    social_media = extract_social_links(html)
 
     record = {
         "business_name": business_name,
@@ -170,6 +233,7 @@ def extract_public_info(business_name: str, website: str, url: str, html: str) -
         "phone_numbers": phones,
         "emails": emails,
         "address": address,
+        "social_media": {k: v for k, v in social_media.items() if v},
         "legal_info": {
             "source": "public_website",
             "sources": ["public_website"],
@@ -186,48 +250,46 @@ def extract_public_info(business_name: str, website: str, url: str, html: str) -
     return record
 
 
-async def google_places_lookup(business_name: str, website: str) -> Optional[Dict[str, Any]]:
+async def google_places_lookup(query: str) -> List[Dict[str, Any]]:
     api_key = os.getenv("GOOGLE_PLACES_API_KEY")
     enabled = os.getenv("GOOGLE_PLACES_ENABLED", "false").lower() in {"1", "true", "yes"}
     if not enabled or not api_key:
-        return None
+        return []
 
-    query = business_name or website or "hotel"
     params = {
         "key": api_key,
-        "input": query,
-        "inputtype": "textquery",
-        "fields": "place_id,formatted_address,international_phone_number,website,name,types",
+        "query": query,
     }
-    url = "https://maps.googleapis.com/maps/api/place/findplacefromtext/json"
+    url = "https://maps.googleapis.com/maps/api/place/textsearch/json"
     try:
         response = httpx.get(url, params=params, timeout=20.0)
         response.raise_for_status()
         data = response.json()
-        candidates = data.get("candidates") or []
-        if not candidates:
-            return None
-        place = candidates[0]
-        phone = place.get("international_phone_number") or ""
-        website_url = place.get("website") or website or ""
-        return {
-            "business_name": place.get("name") or business_name,
-            "website": website_url,
-            "address": place.get("formatted_address") or "",
-            "phone_numbers": extract_phones(phone),
-            "emails": [],
-            "legal_info": {
-                "source": "google_places_api",
-                "sources": ["google_places_api"],
-                "public_contact_fields": {
-                    "phone": bool(phone),
-                    "email": False,
-                    "address": bool(place.get("formatted_address")),
+        places = data.get("results") or []
+        results: List[Dict[str, Any]] = []
+        for place in places[:10]:
+            phone = place.get("formatted_phone_number") or place.get("international_phone_number") or ""
+            website_url = place.get("website") or ""
+            results.append({
+                "business_name": place.get("name") or "",
+                "website": website_url,
+                "address": place.get("formatted_address") or "",
+                "phone_numbers": extract_phones(phone),
+                "emails": [],
+                "social_media": {},
+                "legal_info": {
+                    "source": "google_places_api",
+                    "sources": ["google_places_api"],
+                    "public_contact_fields": {
+                        "phone": bool(phone),
+                        "email": False,
+                        "address": bool(place.get("formatted_address")),
+                    },
                 },
-            },
-        }
+            })
+        return results
     except Exception:
-        return None
+        return []
 
 
 async def process_item(item: Dict[str, Any]) -> Dict[str, Any]:
@@ -243,6 +305,7 @@ async def process_item(item: Dict[str, Any]) -> Dict[str, Any]:
             "phone_numbers": [],
             "emails": [],
             "address": "",
+            "social_media": {},
             "legal_info": {"warning": "No public URL supplied"},
             "quality_score": 0,
         }
@@ -250,9 +313,10 @@ async def process_item(item: Dict[str, Any]) -> Dict[str, Any]:
     try:
         html = await fetch_html(url)
         record = extract_public_info(business_name, website, url, html)
-        google_places_record = await google_places_lookup(business_name, website)
-        if google_places_record:
-            record = merge_records(record, google_places_record)
+        places = await google_places_lookup(f"{business_name} {website}")
+        if places:
+            place = places[0]
+            record = merge_records(record, place)
         return record
     except Exception as exc:
         fallback = {
@@ -262,15 +326,16 @@ async def process_item(item: Dict[str, Any]) -> Dict[str, Any]:
             "phone_numbers": [],
             "emails": [],
             "address": "",
+            "social_media": {},
             "legal_info": {
                 "warning": "Could not fetch public page",
                 "error": str(exc),
             },
             "quality_score": 0,
         }
-        google_places_record = await google_places_lookup(business_name, website)
-        if google_places_record:
-            fallback = merge_records(fallback, google_places_record)
+        places = await google_places_lookup(f"{business_name} {website}")
+        if places:
+            fallback = merge_records(fallback, places[0])
         return fallback
 
 
@@ -284,19 +349,8 @@ def load_csv_batch(csv_path: str) -> List[Dict[str, Any]]:
         for row in reader:
             if not row:
                 continue
-            business_name = (
-                row.get("business_name")
-                or row.get("name")
-                or row.get("businessName")
-                or "Unknown business"
-            )
-            website = (
-                row.get("website")
-                or row.get("website_url")
-                or row.get("url")
-                or row.get("Website")
-                or ""
-            )
+            business_name = row.get("business_name") or row.get("name") or row.get("businessName") or "Unknown business"
+            website = row.get("website") or row.get("website_url") or row.get("url") or row.get("Website") or ""
             url = row.get("url") or row.get("page_url") or row.get("contact_url") or website or ""
             if not url:
                 continue
@@ -308,17 +362,64 @@ def load_csv_batch(csv_path: str) -> List[Dict[str, Any]]:
     return items
 
 
+async def search_area(destination: str, search_term: str, max_results: int = 10) -> List[Dict[str, Any]]:
+    query = build_search_query(destination, search_term)
+    places = await google_places_lookup(query)
+    results: List[Dict[str, Any]] = []
+    for place in places[:max_results]:
+        business_name = place.get("business_name") or "Unknown business"
+        website = place.get("website") or ""
+        if website:
+            try:
+                html = await fetch_html(website)
+                record = extract_public_info(business_name, website, website, html)
+                record = merge_records(record, place)
+                results.append(record)
+            except Exception:
+                results.append({
+                    **place,
+                    "business_name": business_name,
+                    "website": website,
+                    "source_url": website,
+                    "social_media": {},
+                    "quality_score": score_record(place),
+                })
+        else:
+            record = {
+                "business_name": business_name,
+                "website": "",
+                "source_url": "",
+                "phone_numbers": place.get("phone_numbers") or [],
+                "emails": [],
+                "address": place.get("address") or "",
+                "social_media": {},
+                "legal_info": place.get("legal_info") or {},
+                "quality_score": score_record(place),
+            }
+            results.append(record)
+    return dedupe_and_score(results)
+
+
 async def main() -> None:
     actor = Actor()
     await actor.init()
     try:
         input_data = await actor.get_input() or {}
+        destination = (input_data.get("destination") or input_data.get("location") or input_data.get("area") or "").strip()
+        search_term = (input_data.get("search_term") or input_data.get("query") or input_data.get("what") or "").strip()
+        max_results = int(input_data.get("max_results") or 10)
         start_urls = input_data.get("startUrls") or []
         csv_file = input_data.get("csv_file") or input_data.get("csvPath")
+
+        if destination or search_term:
+            results = await search_area(destination, search_term, max_results=max_results)
+            await actor.push_data(results)
+            return
+
         if csv_file:
             start_urls = load_csv_batch(csv_file)
         if not start_urls:
-            raise ValueError("Input must include a non-empty startUrls list or a valid csv_file path.")
+            raise ValueError("Input must include destination + search_term, or startUrls / csv_file for a direct batch run.")
 
         results = [await process_item(item) for item in start_urls]
         results = dedupe_and_score(results)

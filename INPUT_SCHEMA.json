@@ -1,11 +1,33 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "title": "Hotel outreach actor input",
+  "title": "Location-based business lookup actor input",
   "type": "object",
   "properties": {
+    "destination": {
+      "type": "string",
+      "description": "Area, city, district, or neighborhood to search in. Example: Nairobi, Westlands, Kisumu."
+    },
+    "search_term": {
+      "type": "string",
+      "description": "What the user is looking for in that area. Example: hotel, salon, restaurant, gym."
+    },
+    "location": {
+      "type": "string",
+      "description": "Optional alias for destination."
+    },
+    "query": {
+      "type": "string",
+      "description": "Optional alias for search_term."
+    },
+    "max_results": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 50,
+      "description": "Number of businesses to return."
+    },
     "startUrls": {
       "type": "array",
-      "description": "Explicit list of businesses and URL pages to inspect.",
+      "description": "Legacy direct URL batch mode for known businesses.",
       "items": {
         "type": "object",
         "properties": {
@@ -19,7 +41,7 @@
     },
     "csv_file": {
       "type": "string",
-      "description": "Optional CSV path containing a batch of hotel rows with business_name, website, and url columns."
+      "description": "Optional CSV path for a direct business batch. Kept only for compatibility; the repo does not track sensitive company lists."
     },
     "google_places_enabled": {
       "type": "boolean",
@@ -29,6 +51,5 @@
       "type": "string",
       "description": "Optional Google Places API key used only when the actor is explicitly enabled for authorized retrieval."
     }
-  },
-  "required": ["startUrls"]
+  }
 }
