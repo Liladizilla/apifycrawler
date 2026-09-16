@@ -45,10 +45,30 @@
         "title": "Business entry",
         "type": "object",
         "properties": {
-          "business_name": { "title": "Business name", "type": "string", "editor": "textfield" },
-          "website": { "title": "Website", "type": "string", "editor": "textfield" },
-          "url": { "title": "URL", "type": "string", "editor": "textfield" },
-          "name": { "title": "Name", "type": "string", "editor": "textfield" }
+          "business_name": {
+            "title": "Business name",
+            "type": "string",
+            "description": "Business or company name.",
+            "editor": "textfield"
+          },
+          "website": {
+            "title": "Website",
+            "type": "string",
+            "description": "Public website URL for the business.",
+            "editor": "textfield"
+          },
+          "url": {
+            "title": "URL",
+            "type": "string",
+            "description": "The public page to inspect for contact details.",
+            "editor": "textfield"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string",
+            "description": "Optional alias for the business name.",
+            "editor": "textfield"
+          }
         },
         "required": ["url"]
       }
