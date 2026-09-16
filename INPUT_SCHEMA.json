@@ -5,50 +5,60 @@
   "type": "object",
   "properties": {
     "destination": {
+      "title": "Destination",
       "type": "string",
       "description": "Area, city, district, or neighborhood to search in. Example: Nairobi, Westlands, Kisumu."
     },
     "search_term": {
+      "title": "Search term",
       "type": "string",
       "description": "What the user is looking for in that area. Example: hotel, salon, restaurant, gym."
     },
     "location": {
+      "title": "Location",
       "type": "string",
       "description": "Optional alias for destination."
     },
     "query": {
+      "title": "Query",
       "type": "string",
       "description": "Optional alias for search_term."
     },
     "max_results": {
+      "title": "Max results",
       "type": "integer",
       "minimum": 1,
       "maximum": 50,
       "description": "Number of businesses to return."
     },
     "startUrls": {
+      "title": "Start URLs",
       "type": "array",
       "description": "Legacy direct URL batch mode for known businesses.",
       "items": {
+        "title": "Business entry",
         "type": "object",
         "properties": {
-          "business_name": { "type": "string" },
-          "website": { "type": "string" },
-          "url": { "type": "string" },
-          "name": { "type": "string" }
+          "business_name": { "title": "Business name", "type": "string" },
+          "website": { "title": "Website", "type": "string" },
+          "url": { "title": "URL", "type": "string" },
+          "name": { "title": "Name", "type": "string" }
         },
         "required": ["url"]
       }
     },
     "csv_file": {
+      "title": "CSV file",
       "type": "string",
       "description": "Optional CSV path for a direct business batch. Kept only for compatibility; the repo does not track sensitive company lists."
     },
     "google_places_enabled": {
+      "title": "Google Places enabled",
       "type": "boolean",
       "description": "Set to true only when you have authorized Google Places API access and a valid API key configured."
     },
     "google_places_api_key": {
+      "title": "Google Places API key",
       "type": "string",
       "description": "Optional Google Places API key used only when the actor is explicitly enabled for authorized retrieval."
     }
