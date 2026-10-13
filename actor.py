@@ -405,6 +405,14 @@ async def main() -> None:
     await actor.init()
     try:
         input_data = await actor.get_input() or {}
+
+        # Honor Google Places settings supplied through the Apify input form.
+        input_api_key = (input_data.get("google_places_api_key") or "").strip()
+        if input_api_key:
+            os.environ["GOOGLE_PLACES_API_KEY"] = input_api_key
+        if "google_places_enabled" in input_data:
+            os.environ["GOOGLE_PLACES_ENABLED"] = str(input_data.get("google_places_enabled")).lower()
+
         destination = (input_data.get("destination") or input_data.get("location") or input_data.get("area") or "").strip()
         search_term = (input_data.get("search_term") or input_data.get("query") or input_data.get("what") or "").strip()
         max_results = int(input_data.get("max_results") or 10)
