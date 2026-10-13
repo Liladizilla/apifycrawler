@@ -250,45 +250,63 @@ def extract_public_info(business_name: str, website: str, url: str, html: str) -
     return record
 
 
-async def google_places_lookup(query: str) -> List[Dict[str, Any]]:
+async def google_places_lookup(query: str, max_results: int = 10) -> List[Dict[str, Any]]:
+    """Search Google Places and enrich results using Place Details."""
     api_key = os.getenv("GOOGLE_PLACES_API_KEY")
     enabled = os.getenv("GOOGLE_PLACES_ENABLED", "false").lower() in {"1", "true", "yes"}
     if not enabled or not api_key:
         return []
 
-    params = {
-        "key": api_key,
-        "query": query,
-    }
-    url = "https://maps.googleapis.com/maps/api/place/textsearch/json"
+    search_url = "https://maps.googleapis.com/maps/api/place/textsearch/json"
+    details_url = "https://maps.googleapis.com/maps/api/place/details/json"
     try:
-        response = httpx.get(url, params=params, timeout=20.0)
-        response.raise_for_status()
-        data = response.json()
-        places = data.get("results") or []
-        results: List[Dict[str, Any]] = []
-        for place in places[:10]:
-            phone = place.get("formatted_phone_number") or place.get("international_phone_number") or ""
-            website_url = place.get("website") or ""
-            results.append({
-                "business_name": place.get("name") or "",
-                "website": website_url,
-                "address": place.get("formatted_address") or "",
-                "phone_numbers": extract_phones(phone),
-                "emails": [],
-                "social_media": {},
-                "legal_info": {
-                    "source": "google_places_api",
-                    "sources": ["google_places_api"],
-                    "public_contact_fields": {
-                        "phone": bool(phone),
-                        "email": False,
-                        "address": bool(place.get("formatted_address")),
+        with httpx.Client(timeout=20.0) as client:
+            response = client.get(search_url, params={"key": api_key, "query": query})
+            response.raise_for_status()
+            data = response.json()
+            status = data.get("status")
+            if status not in {"OK", "ZERO_RESULTS"}:
+                raise RuntimeError(f"Google Places Text Search returned status: {status or 'unknown'}")
+
+            results: List[Dict[str, Any]] = []
+            for place in (data.get("results") or [])[:max(1, min(int(max_results), 50))]:
+                details: Dict[str, Any] = {}
+                place_id = place.get("place_id")
+                if place_id:
+                    detail_response = client.get(details_url, params={
+                        "key": api_key,
+                        "place_id": place_id,
+                        "fields": "name,formatted_phone_number,international_phone_number,website,formatted_address",
+                    })
+                    detail_response.raise_for_status()
+                    detail_data = detail_response.json()
+                    if detail_data.get("status") == "OK":
+                        details = detail_data.get("result") or {}
+
+                phone = details.get("international_phone_number") or details.get("formatted_phone_number") or ""
+                address = details.get("formatted_address") or place.get("formatted_address") or ""
+                record = {
+                    "business_name": details.get("name") or place.get("name") or "",
+                    "website": details.get("website") or "",
+                    "address": address,
+                    "phone_numbers": extract_phones(phone),
+                    "emails": [],
+                    "social_media": {},
+                    "legal_info": {
+                        "source": "google_places_api",
+                        "sources": ["google_places_api"],
+                        "public_contact_fields": {
+                            "phone": bool(phone),
+                            "email": False,
+                            "address": bool(address),
+                        },
                     },
-                },
-            })
-        return results
-    except Exception:
+                }
+                record["quality_score"] = score_record(record)
+                results.append(record)
+            return results
+    except Exception as exc:
+        await Actor.log.warning(f"Google Places lookup failed: {exc}")
         return []
 
 
@@ -364,7 +382,7 @@ def load_csv_batch(csv_path: str) -> List[Dict[str, Any]]:
 
 async def search_area(destination: str, search_term: str, max_results: int = 10) -> List[Dict[str, Any]]:
     query = build_search_query(destination, search_term)
-    places = await google_places_lookup(query)
+    places = await google_places_lookup(query, max_results=max_results)
     results: List[Dict[str, Any]] = []
     for place in places[:max_results]:
         business_name = place.get("business_name") or "Unknown business"
