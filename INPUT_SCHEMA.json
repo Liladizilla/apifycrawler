@@ -42,7 +42,6 @@
       "description": "Legacy direct URL batch mode for known businesses.",
       "editor": "json",
       "items": {
-        "title": "Business entry",
         "type": "object",
         "properties": {
           "business_name": {
